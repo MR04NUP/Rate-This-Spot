@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Saved Locations (Simplified)</title>
+  <style>
+    /*  BASIC STYLES  */
+    /* Reset margins/padding & set a simple font */
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+    /* Background color and bottom padding for nav */
+    body { background: #eef2f6; color: #222; padding-bottom: 60px; }
+    /* Header styling */
+    header { background: #5ca3e6; color: #fff; text-align: center; padding: 15px; font-size: 1.4rem; }
+
+    /*  LAYOUT SECTIONS */
+    /* Hide all sections by default */
+    section { display: none; padding: 15px; }
+    /* Show only the active section */
+    section.active { display: block; }
+
+    /*  HOME / LIST  */
+    /* Card for each saved location */
+    .card { display: flex; gap: 10px; background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 12px; cursor: pointer; }
+    /* Thumbnail image */
+    .card img { width: 70px; height: 70px; object-fit: cover; border-radius: 6px; }
+    /* Title inside card */
+    .card h3 { font-size: 1rem; }
+    /* Gold stars for rating */
+    .rating-dots { color: gold; font-size: 1rem; }
+
+    /*  FORM  */
+    /* Stack form fields vertically */
+    form { display: flex; flex-direction: column; gap: 10px; }
+    /* Basic input/textarea/select/button styling */
+    input, textarea, select, button { padding: 8px; font-size: 1rem; }
+    /* Border and rounding */
+    input, textarea, select { border: 1px solid #aaa; border-radius: 4px; }
+    /* Button color */
+    button { background: #5ca3e6; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    /* Preview image above inputs */
+    img#preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 6px; }
+
+    /*  DETAIL  */
+    /* Large detail image */
+    #detail img { width: 100%; max-height: 250px; object-fit: cover; border-radius: 6px; margin-bottom: 10px; }
+    /* Space above detail buttons */
+    #detail button { margin-top: 10px; }
+
+    /*  SIMPLE BOTTOM NAV  */
+    /* Fixed nav at bottom */
+    nav { position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background: #5ca3e6; display: flex; justify-content: space-around; align-items: center; color: #fff; font-size: 1.4rem; }
+    /* Make nav items clickable */
+    nav div { cursor: pointer; user-select: none; }
+  </style>
+</head>
+<body>
+  <!-- Page header -->
+  <header id="pageTitle">Saved Locations</header>
+
+  <!-- HOME (List) -->
+  <section id="home" class="active"></section>
+
+  <!-- FORM (Add / Edit) -->
+  <section id="form">
+    <!-- Back button to return to home -->
+    <button id="backFromForm">← Back</button>
+    <h2 id="formTitle">Add Location</h2>
+    <!-- Spot form for adding/editing -->
+    <form id="spotForm">
+      <!-- Live preview of chosen photo -->
+      <img id="preview" alt="preview"/>
+      <!-- File input for photo -->
+      <input type="file" id="photoInput" accept="image/*" required>
+      <!-- Text fields -->
+      <input type="text" id="nameInput" placeholder="Location name" required>
+      <textarea id="textInput" placeholder="Say something..." maxlength="250" required></textarea>
+      <!-- Rating dropdown -->
+      <label>Rating
+        <select id="ratingInput" required>
+          <option value="">Choose 1-5</option>
+          <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+        </select>
+      </label>
+      <!-- Submit button -->
+      <button type="submit">Save</button>
+    </form>
+  </section>
+
+  <!-- DETAIL VIEW -->
+  <section id="detail">
+    <!-- Back button -->
+    <button id="backFromDetail">← Back</button>
+    <!-- Spot details -->
+    <h2 id="detailName"></h2>
+    <img id="detailImg"/>
+    <p id="detailText"></p>
+    <div id="detailRating" class="rating-dots"></div>
+    <!-- Edit and Delete actions -->
+    <button id="editBtn">Edit ✎</button>
+    <button id="delBtn" style="background:#d64545">Delete</button>
+  </section>
+
+  <!-- SIMPLE NAV -->
+  <nav>
+    <div id="navHome">🏠</div>
+    <div id="navAdd">➕</div>
+  </nav>
+
+<script>
+/**************** LOCAL STORAGE ****************/
+// Key under which spots are saved
+const KEY = 'mySpots';
+// Load spots array or return empty
+const load = () => JSON.parse(localStorage.getItem(KEY) || '[]');
+// Save spots array to localStorage
+const save = data => localStorage.setItem(KEY, JSON.stringify(data));
+
+/**************** GLOBAL VARS ****************/
+let spots = load();      // Array of spot objects
+let editIndex = null;    // Index of spot being edited (null = adding new)
+
+/**************** SECTION HANDLING ****************/
+// Helper to get section by id
+const sec = id => document.getElementById(id);
+// Show one section and hide others
+function show(id) {
+  ['home','form','detail'].forEach(s => {
+    sec(s).classList.toggle('active', s === id);
+  });
+}
+
+/**************** RENDER HOME LIST ****************/
+function renderHome() {
+  show('home');
+  const home = sec('home');
+  home.innerHTML = '';
+  // If no spots, show message
+  if (!spots.length) {
+    home.innerHTML = '<p>No locations yet – tap ➕ to add.</p>';
+    return;
+  }
+  // Create a card for each spot
+  spots.forEach((s, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    // Inner HTML with thumbnail, title, text, and stars
+    card.innerHTML = `
+      <img src="${s.photo}">
+      <div>
+        <h3>${s.name}</h3>
+        <p>${s.text}</p>
+        <div class='rating-dots'>${'★'.repeat(s.rating)}</div>
+      </div>`;
+    // On click, open detail for this spot
+    card.onclick = () => openDetail(i);
+    home.appendChild(card);
+  });
+}
+
+/**************** OPEN DETAIL ****************/
+function openDetail(i) {
+  const s = spots[i];
+  editIndex = i;                          // Remember index for edits/delete
+  sec('detailName').textContent = s.name;
+  sec('detailImg').src = s.photo;
+  sec('detailText').textContent = s.text;
+  sec('detailRating').textContent = '★'.repeat(s.rating);
+  show('detail');                        // Switch to detail view
+}
+
+/**************** OPEN FORM ****************/
+function openForm(i = null) {
+  editIndex = i;                          // Null = new, number = editing
+  const editing = i !== null;
+  sec('formTitle').textContent = editing ? 'Edit Location' : 'Add Location';
+  // Clear or fill form inputs
+  sec('spotForm').reset();
+  sec('preview').src = '';
+  if (editing) {
+    const s = spots[i];
+    sec('nameInput').value = s.name;
+    sec('textInput').value = s.text;
+    sec('ratingInput').value = s.rating;
+    sec('preview').src = s.photo;
+  }
+  show('form');                          // Show the form section
+}
+
+/**************** PHOTO PREVIEW ****************/
+// When a file is chosen, show a preview image
+sec('photoInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => sec('preview').src = ev.target.result;
+  reader.readAsDataURL(file);
+});
+
+/**************** SAVE FROM FORM ****************/
+sec('spotForm').addEventListener('submit', e => {
+  e.preventDefault();  // Stop form from reloading page
+  // Read values from inputs
+  const name = sec('nameInput').value.trim();
+  const text = sec('textInput').value.trim();
+  const rating = +sec('ratingInput').value;
+  const photo = sec('preview').src;
+  // Simple validation
+  if (!name || !text || !rating || !photo) {
+    alert('Fill everything');
+    return;
+  }
+  const spot = { name, text, rating, photo };
+  // Add or update in array
+  if (editIndex === null) spots.push(spot);
+  else spots[editIndex] = spot;
+  save(spots);         // Save to localStorage
+  renderHome();        // Go back to home list
+});
+
+/**************** DELETE & EDIT FROM DETAIL ****************/
+// Delete button clears one spot
+sec('delBtn').onclick = () => {
+  if (confirm('Delete this location?')) {
+    spots.splice(editIndex, 1);
+    save(spots);
+    renderHome();
+  }
+};
+// Edit button opens form with current details
+sec('editBtn').onclick = () => openForm(editIndex);
+
+/**************** NAV BUTTONS ****************/
+sec('navHome').onclick = renderHome;      // Home icon → list view
+sec('navAdd').onclick = () => openForm(); // + icon → add form
+sec('backFromForm').onclick = renderHome; // Back in form → home
+sec('backFromDetail').onclick = renderHome; // Back in detail → home
+
+/**************** START APP ****************/
+renderHome();  // Initial view setup
+</script>
+</body>
+</html>
